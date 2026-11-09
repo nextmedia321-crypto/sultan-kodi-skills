@@ -104,6 +104,7 @@ if ledger_out:
     for rel, n in byfile.most_common(): rows.append((f"R{i}", f"{n} interactive elements in {rel}", "ui", rel, "unchecked", "", "")); i += 1
     for area in ("build and deploy pipeline", "authentication flows", "error and empty states", "accessibility", "responsiveness", "performance", "security headers", "dependencies", "backups and recovery", "logging and monitoring", "tests", "documentation", "legal and privacy pages"):
         rows.append((f"R{i}", area, "cross-cutting", "-", "unchecked", "", "")); i += 1
+    os.makedirs(os.path.dirname(os.path.abspath(ledger_out)), exist_ok=True)
     with open(ledger_out, "w", encoding="utf-8") as fh:
         fh.write("\n".join("\t".join(r) for r in rows) + "\n")
     print(f"\nledger seed written: {ledger_out} ({len(rows) - 1} rows). Add what this static scan cannot see.")
