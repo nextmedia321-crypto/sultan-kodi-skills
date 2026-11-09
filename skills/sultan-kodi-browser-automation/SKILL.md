@@ -1,12 +1,32 @@
 ---
 name: sultan-kodi-browser-automation
-description: Automate and test websites in a real browser with Playwright: click through flows, fill forms, capture screenshots, check that pages work. Use for end-to-end checks and scraping-free UI tasks.
+description: "Drive a real browser with Playwright to test and automate websites: open pages, read a page snapshot, click, fill forms, wait on conditions, capture screenshots, record network and storage state, and report per step. Use for end-to-end checks and UI tasks."
 ---
 
 # Browser automation with Playwright
 
-- Check that Playwright and a browser are installed; install only if missing.
-- Write a short script that: opens the URL, performs the steps, waits on visible conditions (not fixed sleeps), asserts on text or state, and saves screenshots on failure.
-- Use stable selectors: role and label first, test ids second, CSS last.
-- Never type real passwords or payment data; use test accounts on local or staging hosts only.
-- Report: steps run, pass or fail per step, screenshot paths, and the exact error if anything failed. Keep scripts in a `tests/e2e` style folder and make them re-runnable.
+## Setup
+- Check that Playwright and a browser are installed (import it, or run the CLI); install only what is missing. Prefer a CLI/session you can drive step by step; otherwise write a short script.
+
+## Core loop
+1. Open the page and read a structured snapshot or the accessibility tree to find elements (more reliable than screenshots).
+2. Act using stable targets: role + accessible name first, label/text second, test id third, CSS last. Never use brittle positional selectors.
+3. After every action wait for a visible condition (element, text, URL, network idle), never a fixed sleep.
+4. Assert on text, state or URL, and take a screenshot on failure (and at key steps when useful).
+5. Close the browser and any sessions when done.
+
+## Capabilities to use when relevant
+- Navigation, back/forward, reload; keyboard (type, press, shortcuts); mouse (click, double click, hover, drag, wheel); form fill and select, check, upload files.
+- Multiple tabs and dialogs (accept/dismiss deliberately); iframes.
+- Save screenshots, PDFs, page snapshots.
+- Read and set cookies, localStorage, sessionStorage; reuse a saved login state between runs.
+- Emulate devices, viewport, geolocation, locale, color scheme, offline mode.
+- Watch the console and network requests; mock or block requests to test error states; trace/record a session and generate script code from it.
+- Run several named sessions in parallel when comparing flows.
+
+## Safety
+- Never enter real passwords, payment data or personal data. Use test accounts on local or staging hosts. Do not bypass CAPTCHAs.
+- Do not scrape sites in violation of their terms; respect robots and rate limits.
+
+## Report
+Steps run, pass/fail per step, screenshot paths, console or network errors seen, and the exact error text when something failed. Keep re-runnable scripts in a tests/e2e style folder.

@@ -1,13 +1,22 @@
 ---
 name: sultan-kodi-risk-review
-description: Review a portfolio for concentration, correlation, drawdown and scenario risk and suggest ways to reduce it. Use for a risk check-up.
+description: "Review a portfolio or proposed orders against risk limits: concentration, sector overlap, correlation, blocked tickers, order size, cash buffer, margin, shorts, options and crypto, duplicates and daily limits, with PASS or BLOCK and a reason per item. Use before any trade."
 ---
 
 # Risk review
 
-1. Concentration: top positions, sectors, countries, currencies.
-2. Correlation: which holdings move together.
-3. Drawdown: historical worst declines for each holding and the whole mix.
-4. Scenarios: a market fall of 20%, a rate shock, a currency move; show estimated impact in currency.
-5. Suggest specific, optional ways to reduce the biggest risks and the trade-offs of each.
-Decision-support only: not financial advice. State assumptions, show sources and dates for data, and never execute trades.
+Check before anything reaches a broker. Report PASS or BLOCK per order with the reason, and a portfolio summary.
+
+## Order checks
+Blocked tickers; maximum order size; minimum order size; maximum position percent after the fill; cash buffer kept; margin use; short selling; options and crypto (off unless the user allowed them); malformed orders (missing fields, impossible quantities); duplicates; daily order count limit.
+
+## Portfolio checks
+- **Concentration:** top positions and top-3 share; sector and country exposure.
+- **Correlation/overlap:** holdings that tend to move together (same sector, same driver, funds that hold the same stocks).
+- **Scenarios:** a simple stress (for example market down 20%, sector down 30%, one position down 50%) with the portfolio impact in percent and currency.
+- **Liquidity and event risk:** small caps, earnings dates, pending news.
+
+## Output
+Verdict table (order, PASS/BLOCK, reason), portfolio risk summary with the 3 biggest risks, and suggested adjustments. If the user's limits are not known, ask for them or state the defaults you assumed. Any BLOCK stays blocked until the user changes the limit explicitly.
+
+**Disclaimer (include in every result):** this is decision support and information, not investment, tax or legal advice. Data can be delayed or wrong; verify with the original source. It never places orders or connects to a broker.
