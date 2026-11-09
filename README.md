@@ -18,4 +18,6 @@ npx skills add nextmedia321-crypto/sultan-kodi-skills --skill sultan-kodi-launch
 
 Or copy a folder from `skills/` to `~/.claude/skills/` by hand.
 
-The trading skills are decision-support only, never place orders, and are not financial advice.
+`sultan-kodi-system-audit` audits a whole system and then fixes the defects on a separate branch; it asks for approval before fixing and never touches production without a clear yes.
+
+The trading skill (`sultan-kodi-trading-desk`) is decision-support only, never places orders, and is not financial advice.
