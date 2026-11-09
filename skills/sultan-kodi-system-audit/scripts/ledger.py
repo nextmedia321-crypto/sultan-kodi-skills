@@ -16,7 +16,9 @@ Usage (run from the project root, or set AUDIT_DIR):
   ledger.py regress                       re-run every fixed check; reopen anything that broke
   ledger.py export-tests                  write .audit/regression.sh from all fixed checks
   ledger.py active on|off                 turn repair mode (Stop hook blocking) on or off
+  ledger.py priority                      today / this week / this month, by business impact and effort
   ledger.py report                        markdown summary
+  (add also takes --impact revenue|retention|risk|none --effort S|M|L --plain "one plain sentence for a business owner")
 """
 import json, os, subprocess, sys, time, argparse
 
@@ -52,7 +54,7 @@ def regress(s, exclude=None):
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("cmd"); ap.add_argument("id", nargs="?")
-    for a in ("sev", "area", "title", "evidence", "check", "fix", "reason", "new"): ap.add_argument("--" + a)
+    for a in ("sev", "area", "title", "evidence", "check", "fix", "reason", "new", "impact", "effort", "plain"): ap.add_argument("--" + a)
     ap.add_argument("--open", action="store_true"); a = ap.parse_args(); c = a.cmd
 
     if c == "init":
@@ -62,7 +64,7 @@ def main():
     if c == "add":
         if not (a.sev in SEVS and a.title and a.evidence): sys.exit("add needs --sev (Critical|High|Medium|Low) --title --evidence")
         i = "F%d" % (len(s["findings"]) + 1)
-        s["findings"].append({"id": i, "sev": a.sev, "area": a.area or "", "title": a.title, "evidence": a.evidence, "check": a.check or "", "fix": a.fix or "", "status": "open", "proof": "", "reason": "", "history": []})
+        s["findings"].append({"id": i, "sev": a.sev, "area": a.area or "", "title": a.title, "evidence": a.evidence, "check": a.check or "", "fix": a.fix or "", "impact": a.impact or "", "effort": a.effort or "", "plain": a.plain or "", "status": "open", "proof": "", "reason": "", "history": []})
         save(s); print("added", i)
         if not a.check: print("WARNING: no acceptance check; it will need manual proof via 'verify --check' before closing")
     elif c == "list":
@@ -126,6 +128,18 @@ def main():
         else:
             if os.path.exists(m): os.remove(m)
             print("repair mode OFF")
+    elif c == "priority":
+        W = {"revenue": 3, "risk": 3, "retention": 2, "none": 0, "": 1}; E = {"S": 1, "M": 2, "L": 4, "": 2}; SV = {"Critical": 8, "High": 4, "Medium": 2, "Low": 1}
+        todo = [x for x in s["findings"] if x["status"] in ("open", "in_progress", "blocked")]
+        sc = lambda x: (SV[x["sev"]] + W.get(x.get("impact", ""), 1) * 2) / E.get(x.get("effort", ""), 2)
+        todo.sort(key=sc, reverse=True)
+        buckets = {"Today": [x for x in todo if x["sev"] == "Critical" or sc(x) >= 6], "This week": [], "This month": []}
+        for x in todo:
+            if x in buckets["Today"]: continue
+            (buckets["This week"] if sc(x) >= 2.5 or x["sev"] == "High" else buckets["This month"]).append(x)
+        for k, v in buckets.items():
+            print(f"\n## {k} ({len(v)})")
+            for x in v: print(f'- {x["id"]} [{x["sev"]}] {x["title"]}  impact={x.get("impact") or "?"} effort={x.get("effort") or "?"}' + (" (needs you)" if x["status"] == "blocked" else ""))
     elif c == "report":
         print("| id | severity | status | title | proof or reason |\n|---|---|---|---|---|")
         for x in sorted(s["findings"], key=lambda x: (SEVS.index(x["sev"]), x["id"])):

@@ -21,7 +21,10 @@ Run `scripts/estimate.py <project>` and show the estimate (it is only an estimat
 - check only: full coverage and ledger, no code changes.
 - check and fix: full coverage, repair loop, two clean passes, gate.
 - full: check and fix plus browser sweep, live DB, permission matrix, gap analysis, verifier and HTML report.
+- pr: only what a change touched, for pull requests and CI (`scripts/pr_check.py`).
+- monitor: a lightweight nightly re-check that reports only what changed (`scripts/monitor.py`).
 The Stop hook (below) is used in check and fix and full only.
+Budget: if the user gives a usage cap (for example "up to 20% of my week"), run `scripts/budget.py set ...`, log rough units after heavy steps with `budget.py log N`, and run `budget.py check` between findings: exit 3 means wrap up, exit 4 means stop, save the ledger and write `.audit/HANDOFF.md`. The numbers are self-reported estimates; say so.
 
 ## Phase 1 - Discover (no edits)
 1. Identify stack, entry points, how to run, build and test, where it deploys. Read README, manifests, config.
@@ -35,6 +38,14 @@ Work every row until none is unchecked; close a row only as run, read, not check
 - Running app: `node scripts/browser_sweep.mjs <url> --save .audit/baseline.json` crawls pages, clicks every non-destructive button, and reports console errors, failed requests, dead buttons, basic accessibility, axe violations (if axe-core is installed), and load, LCP and transfer numbers. Run again with `--compare` after fixes to catch performance regressions; add `--mobile` for a phone viewport. Destructive-labeled buttons are skipped unless the user allowed them.
 - Roles and ownership: write `.audit/authz.json` and run `scripts/authz_matrix.py .audit/authz.json` against a local or staging instance with test accounts (tokens from env vars). Every mismatch is a finding; a 200 where another user's record should be denied is an IDOR.
 - Database: `scripts/db_check.py --sqlite file.db` (read-only), or `--postgres URL --i-confirm-not-production` only after the user confirms the database is a copy or staging.
+- Hostile input: `scripts/fuzz.py config.json` against a running local or staging instance (5xx, leaked stack traces or SQL errors, unescaped reflection). Load: `scripts/loadtest.py <url> --users 20 --seconds 10` (local or staging only; refuses others without `--force` and a user yes).
+- Backups: `scripts/backup_restore.py --sqlite db` or `--archive file` proves a restore works on a temp copy; a Postgres dump is only parsed, a real restore needs a scratch instance, so record that as not checkable.
+- Personal data: `scripts/pii_map.py <project>` (where personal data lives, is logged or sent out; deletion, export, consent, retention code present or not). Flags for review, not legal advice.
+- Git history: `scripts/git_secrets.py <project>` finds secrets removed from the code but still in history. A hit means rotate first; rewriting history only with the user's yes.
+- Cost: `scripts/cost_scan.py <project>` (paid or AI calls in loops, no cache, no output cap, polling, unbounded queries). Money figures are rough and must be checked against the provider's prices.
+- Content and SEO: `scripts/content_seo.py <folder|url>` (titles, meta, h1, lang, RTL, alt, canonical, Open Graph, broken internal links, duplicates).
+- Email: `scripts/email_check.py --domain d.com` (SPF, DKIM, DMARC; says NOT CHECKED when DNS is unreachable and never guesses) and `--templates folder`.
+- Deployment: `scripts/deploy_check.py <project>` (env vars used vs documented, health check, CI, rollback, debug flags, container user). Staging versus production differences need access to both: ask, do not assume.
 - Build, type check, lint, tests, and the app itself. Record exact commands.
 - If the system cannot run, say so and review statically.
 
@@ -42,10 +53,11 @@ Work every row until none is unchecked; close a row only as run, read, not check
 `ledger.py init`, then `ledger.py add --sev ... --area ... --title ... --evidence ... --check "<command>"` for every defect.
 - The check fails now and passes only when the defect is truly gone (test, curl asserting status, grep that must find nothing, Playwright script, authz_matrix run). Prefer automated checks; if a UI defect has no test, write a small script that proves it.
 - Severities: Critical (data loss, security hole, broken core flow, outage), High, Medium, Low. Merge duplicates, never drop items to shorten the list.
+Optional fields on `add`: `--impact revenue|retention|risk|none`, `--effort S|M|L`, `--plain "one plain sentence for the business owner"`.
 Show `ledger.py report` plus the coverage summary. Unchecked rows mean the audit is not finished.
 
 ## Phase 4 - Opportunities and gaps
-Rank improvements with `references/opportunities.md` (impact on revenue, retention or risk, times confidence, over effort). In full mode, run `references/gap-analysis.md` against similar systems. Proposals only.
+Run `ledger.py priority` to turn the open findings into Today, This week and This month by business impact and effort. Rank improvements with `references/opportunities.md` (impact on revenue, retention or risk, times confidence, over effort). In full mode, run `references/gap-analysis.md` against similar systems. Proposals only.
 
 ## Phase 5 - The repair loop (check and fix, full)
 Ask once for approval of the plan: what is fixed automatically and what needs the user. Ask also before installing the Stop hook (it writes `.claude/settings.json`, a persistent setting): `python3 scripts/install_hook.py <project>`. Then `ledger.py active on`, which makes the hook block finishing until the gate passes (it releases after 12 identical blocks and says why).
@@ -67,8 +79,12 @@ When nothing is open, run a full new pass over the whole coverage ledger, includ
 Run `ledger.py gate` (it re-runs all fixed checks). It must pass before any completion claim. Then, in full mode and for any High or Critical fix, run the independent verifier from `references/verifier-prompt.md` with a fresh agent that has not seen the repair work. Its WEAK CHECK and NOT FIXED results become new findings and the loop resumes. Finally `ledger.py active off`, and offer `install_hook.py --remove`.
 
 ## Reporting
-`scripts/report_html.py --lang he|en` builds `.audit/report.html`, a self-contained page with severity and status bars, every finding with proof, the gate state and the sweep summary; send or publish it when the user wants to share it.
+`scripts/trend.py snapshot` after each pass and `trend.py compare` to show what is new, closed or reopened since last time. `scripts/report_html.py --lang he|en [--plain]` builds `.audit/report.html`, a self-contained page with severity and status bars, every finding with proof, the gate state and the sweep summary; send or publish it when the user wants to share it.
+With `--plain` each finding gets a sentence a business owner understands, and the final message explains what each result means for the business without jargon.
 Final message: `Summary (3 lines) | Coverage | Fixed (id, commit, proof) | Blocked (id, exact decision) | Opportunities ranked | Gate and verifier result | Branch and how to review and merge`.
+
+## Continuous monitoring
+Only with the user's approval of a specific project, set a scheduled task that runs `python3 scripts/monitor.py <project> [--url <staging>]` nightly and sends `.audit/monitor/latest.md` only when something is new. It is read-only on the project. Never schedule against a project the user did not name.
 
 ## Long jobs and handoff
 Update the ledger after every fix. Large systems go module by module with one ledger; say which modules this pass reached. When context grows, write `.audit/HANDOFF.md` from `ledger.py report` plus the next three steps.
@@ -83,5 +99,6 @@ Update the ledger after every fix. Large systems go module by module with one le
 ## Bundled files
 - `scripts/inventory.py`, `scripts/ledger.py`, `scripts/stop_gate.py`, `scripts/install_hook.py`
 - `scripts/sec_scan.py`, `scripts/browser_sweep.mjs`, `scripts/db_check.py`, `scripts/authz_matrix.py`, `scripts/map_services.py`
-- `scripts/report_html.py`, `scripts/estimate.py`
+- `scripts/report_html.py`, `scripts/estimate.py`, `scripts/trend.py`, `scripts/budget.py`, `scripts/monitor.py`, `scripts/pr_check.py`
+- `scripts/fuzz.py`, `scripts/loadtest.py`, `scripts/backup_restore.py`, `scripts/pii_map.py`, `scripts/git_secrets.py`, `scripts/cost_scan.py`, `scripts/content_seo.py`, `scripts/email_check.py`, `scripts/deploy_check.py`
 - `references/coverage.md`, `references/verifier-prompt.md`, `references/gap-analysis.md`, `references/opportunities.md`

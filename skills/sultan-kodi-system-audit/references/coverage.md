@@ -36,3 +36,6 @@ Which flows would a user expect that are missing? What do admins need? What woul
 
 ## Added surfaces for v2
 Multiple services (run `scripts/map_services.py`), roles and permissions (run `scripts/authz_matrix.py` against a test instance), live database (run `scripts/db_check.py` on a copy), real scanner results (run `scripts/sec_scan.py`), browser sweep results (run `scripts/browser_sweep.mjs`). Each tool that cannot run is a row marked not checkable with the install hint.
+
+## Added surfaces for v2.1
+Hostile input (`fuzz.py`), load (`loadtest.py`), backups (`backup_restore.py`), personal data (`pii_map.py`), git history secrets (`git_secrets.py`), cost (`cost_scan.py`), content and SEO (`content_seo.py`), email (`email_check.py`), deployment (`deploy_check.py`), trend over time (`trend.py`). Unrunnable tools become not-checkable rows.

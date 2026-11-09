@@ -2,7 +2,7 @@
 """Build a self-contained HTML report from .audit/findings.json (and .audit/sweep/sweep.json if present).
 Usage: report_html.py [--lang en|he] [--out .audit/report.html] [--title "..."]"""
 import json, os, sys, html, time
-a = sys.argv[1:]; opt = lambda n, d=None: a[a.index(n) + 1] if n in a else d
+a = sys.argv[1:]; PLAIN = "--plain" in a; opt = lambda n, d=None: a[a.index(n) + 1] if n in a else d
 D = os.environ.get("AUDIT_DIR", os.path.join(os.getcwd(), ".audit")); F = os.path.join(D, "findings.json")
 if not os.path.exists(F): sys.exit("No ledger at " + F)
 s = json.load(open(F)); lang = opt("--lang", "en"); out = opt("--out", os.path.join(D, "report.html"))
@@ -18,7 +18,13 @@ cs = {k: sum(x["sev"] == k for x in F_) for k in sev}; ct = {}
 for x in F_: ct[x["status"]] = ct.get(x["status"], 0) + 1
 open_ = [x for x in F_ if x["status"] in ("open", "in_progress")]; passes = s["passes"]
 ok = not open_ and len(passes) >= 2 and all(p["new"] == 0 for p in passes[-2:])
-rows = "".join(f'<tr><td>{e(x["id"])}</td><td><span class="pill" style="background:{col[x["sev"]]}">{e(x["sev"])}</span></td><td><span class="pill" style="background:{stc.get(x["status"], "#888")}">{e(x["status"])}</span></td><td>{e(x["title"])}<div class="ev">{e(T["ev"])}: {e(x["evidence"])}</div></td><td>{e((x["proof"] or x["reason"] or "-")[:160])}</td></tr>' for x in sorted(F_, key=lambda x: (sev.index(x["sev"]), x["id"])))
+GL = {"en": {"auth": "Who is allowed in or to see what.", "security": "A way someone could get in or see data they should not.", "data": "How information is stored; mistakes here can lose or mix up information.", "performance": "Things are slow, which loses visitors.", "accessibility": "Some people cannot use it, which also hurts search ranking.", "config": "A setting that may break the live site.", "tests": "Nothing proves it keeps working after changes."},
+      "he": {"auth": "מי רשאי להיכנס ומה מותר לו לראות.", "security": "דרך שבה מישהו יכול להיכנס או לראות מידע שלא אמור.", "data": "איך המידע נשמר; טעות כאן עלולה לאבד או לערבב מידע.", "performance": "דברים איטיים, וזה מפסיד מבקרים.", "accessibility": "יש אנשים שלא יכולים להשתמש, וזה גם פוגע בדירוג בגוגל.", "config": "הגדרה שעלולה לשבור את האתר החי.", "tests": "אין הוכחה שזה ימשיך לעבוד אחרי שינויים."}}[lang]
+def plain_line(x):
+    if not PLAIN: return ""
+    t = x.get("plain") or next((v for k, v in GL.items() if k in (x["area"] or "").lower()), "")
+    return f'<div class="ev" style="opacity:1">{e(t)}</div>' if t else ""
+rows = "".join(f'<tr><td>{e(x["id"])}</td><td><span class="pill" style="background:{col[x["sev"]]}">{e(x["sev"])}</span></td><td><span class="pill" style="background:{stc.get(x["status"], "#888")}">{e(x["status"])}</span></td><td>{e(x["title"])}{plain_line(x)}<div class="ev">{e(T["ev"])}: {e(x["evidence"])}</div></td><td>{e((x["proof"] or x["reason"] or "-")[:160])}</td></tr>' for x in sorted(F_, key=lambda x: (sev.index(x["sev"]), x["id"])))
 sw = ""; sp = os.path.join(D, "sweep", "sweep.json")
 if os.path.exists(sp):
     j = json.load(open(sp)); sw = f'<h2>{e(T["sw"])}</h2><p>{e(T["pg"])}: {len(j["pages"])} · {e(T["iss"])}: {len(j["issues"])}</p><ul>' + "".join(f'<li><b>{e(i["type"])}</b> {e(i["where"])} — {e(i["detail"][:120])}</li>' for i in j["issues"][:25]) + "</ul>"
