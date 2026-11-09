@@ -45,4 +45,4 @@ Reference: a pricing-page screenshot. Result: component code, tokens `--bg #0b0b
 - Do not claim a match without actually rendering and comparing it at two widths.
 
 ## Bundled script
-`scripts/compare.py reference.png screenshot.png [diff.png]` resizes if needed, prints a similarity score and the three most different regions of a 4x4 grid, and writes a diff image. Run it at each width you verify; below about 93 keep iterating. Needs Pillow.
+`scripts/compare.py reference.png screenshot.png [diff.png]` resizes if needed, prints a similarity score and the three most different regions of a 4x4 grid, and writes a diff image. Run it at each width you verify; below about 93 keep iterating. Needs Pillow (`python3 -m pip install --user pillow`; the script prints this if it is missing).

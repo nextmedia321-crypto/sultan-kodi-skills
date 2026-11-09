@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Compare a reference image with a screenshot. Usage: compare.py ref.png shot.png [diff_out.png]
-Needs Pillow (pip install pillow). Prints a similarity score and the worst regions."""
+Needs Pillow (python3 -m pip install --user pillow). Prints a similarity score and the worst regions."""
 import sys, warnings
 warnings.filterwarnings("ignore")
 try:
     from PIL import Image, ImageChops
 except ImportError:
-    sys.exit("Pillow missing: pip install pillow --break-system-packages")
+    sys.exit("Pillow missing: run  python3 -m pip install --user pillow  (add --break-system-packages on Linux), then retry")
 if len(sys.argv) < 3: sys.exit(__doc__)
 a = Image.open(sys.argv[1]).convert("RGB"); b = Image.open(sys.argv[2]).convert("RGB")
 print(f"reference {a.size}, screenshot {b.size}")

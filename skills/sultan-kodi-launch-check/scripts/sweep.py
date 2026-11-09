@@ -43,8 +43,14 @@ def main():
     h = {k.lower(): v for k, v in h.items()}
     if not url.startswith("https"): add("High", "Site is not served over HTTPS")
     else:
-        st2, h2, _ = get("http://" + urllib.parse.urlparse(url).netloc, "HEAD")
-        if not str(h2.get("Location", h2.get("location", ""))).startswith("https"): add("Medium", "HTTP does not redirect to HTTPS")
+        import http.client
+        try:
+            c = http.client.HTTPConnection(urllib.parse.urlparse(url).netloc, timeout=15)
+            c.request("HEAD", "/", headers=UA); r = c.getresponse()
+            loc = r.getheader("Location") or ""
+            if not (300 <= r.status < 400 and loc.startswith("https")): add("Medium", "HTTP does not redirect to HTTPS")
+        except Exception:
+            pass  # port 80 closed: nothing to redirect
     for k, sev in [("strict-transport-security", "Medium"), ("content-security-policy", "Medium"),
                    ("x-content-type-options", "Low"), ("referrer-policy", "Low")]:
         if k not in h: add(sev, f"Missing header: {k}")
