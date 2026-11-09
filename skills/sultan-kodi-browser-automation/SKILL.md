@@ -8,6 +8,9 @@ description: "Drive a real browser with Playwright to test and automate websites
 ## Setup
 - Check that Playwright and a browser are installed (import it, or run the CLI); install only what is missing. Prefer a CLI/session you can drive step by step; otherwise write a short script.
 
+## Script gotchas
+- ES-module scripts (`import ... from 'playwright'`) do not use `NODE_PATH`. If the import fails, run the script from a folder where `playwright` is installed, or link it into `node_modules`, or write the script as CommonJS (`require`) / use Python's `playwright` package. Run it once yourself to confirm it executes before reporting results; never report results you did not obtain.
+
 ## Core loop
 1. Open the page and read a structured snapshot or the accessibility tree to find elements (more reliable than screenshots).
 2. Act using stable targets: role + accessible name first, label/text second, test id third, CSS last. Never use brittle positional selectors.
