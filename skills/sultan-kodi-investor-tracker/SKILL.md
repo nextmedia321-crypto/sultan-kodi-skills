@@ -7,6 +7,10 @@ description: "Summarize what a well-known investor or fund holds from its public
 
 Use public filings only (for US funds, the quarterly 13F-HR holdings report on SEC EDGAR, and insider Form 4 if requested). 
 
+## Access notes
+- SEC sites reject requests without a descriptive User-Agent. Send a generic client name (for example `sultan-kodi-skills`), never the user's personal email unless they ask. Prefer the structured submissions and filing-index endpoints; if the filing document itself still cannot be opened, say so.
+- Figures taken from a third-party aggregator are labeled "unverified", and when two aggregators disagree, show both instead of picking one silently.
+
 ## Procedure
 1. Identify the filer (name or CIK) and fetch the latest and the previous 13F.
 2. Match each CUSIP to a ticker; flag unmatched or ambiguous ones.
