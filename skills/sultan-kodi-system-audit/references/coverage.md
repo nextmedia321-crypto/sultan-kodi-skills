@@ -33,3 +33,6 @@ Screens and routes, buttons, links, forms and fields, modals and menus, keyboard
 
 ## Opportunity prompts
 Which flows would a user expect that are missing? What do admins need? What would reduce support requests? What can be automated? What should be monitored? Where would a small change give a large improvement?
+
+## Added surfaces for v2
+Multiple services (run `scripts/map_services.py`), roles and permissions (run `scripts/authz_matrix.py` against a test instance), live database (run `scripts/db_check.py` on a copy), real scanner results (run `scripts/sec_scan.py`), browser sweep results (run `scripts/browser_sweep.mjs`). Each tool that cannot run is a row marked not checkable with the install hint.

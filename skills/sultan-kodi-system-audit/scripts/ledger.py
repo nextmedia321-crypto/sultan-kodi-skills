@@ -13,6 +13,9 @@ Usage (run from the project root, or set AUDIT_DIR):
   ledger.py wontfix ID --reason "..."     only with the user's approval
   ledger.py pass --new N                  record a full re-audit that found N new defects
   ledger.py gate                          exit 0 only when the work is truly finished
+  ledger.py regress                       re-run every fixed check; reopen anything that broke
+  ledger.py export-tests                  write .audit/regression.sh from all fixed checks
+  ledger.py active on|off                 turn repair mode (Stop hook blocking) on or off
   ledger.py report                        markdown summary
 """
 import json, os, subprocess, sys, time, argparse
@@ -32,6 +35,20 @@ def find(s, i):
     for x in s["findings"]:
         if x["id"] == i: return x
     sys.exit(f"No finding {i}")
+
+def run(cmd):
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=900)
+    return r.returncode, (r.stdout + r.stderr).strip()[-400:]
+
+def regress(s, exclude=None):
+    """Re-run the acceptance check of every finding already marked fixed. Anything that fails again is reopened."""
+    bad = []
+    for x in s["findings"]:
+        if x["status"] == "fixed" and x["check"] and x["id"] != exclude:
+            code, tail = run(x["check"])
+            if code != 0:
+                x["status"] = "open"; x["history"].append({"t": time.strftime("%H:%M:%S"), "exit": code, "tail": "REGRESSION: " + tail}); bad.append(x["id"])
+    return bad
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("cmd"); ap.add_argument("id", nargs="?")
@@ -72,14 +89,18 @@ def main():
         x["history"].append({"t": time.strftime("%H:%M:%S"), "exit": r.returncode, "tail": out})
         if r.returncode == 0: x["status"] = "fixed"; x["proof"] = f"check passed at {time.strftime('%Y-%m-%d %H:%M')}: {cmd}"
         else: x["status"] = "in_progress"
+        bad = regress(s, exclude=a.id) if r.returncode == 0 else []
         save(s); print(a.id, "VERIFIED FIXED" if r.returncode == 0 else f"STILL FAILING (exit {r.returncode})"); print(out[-400:])
-        sys.exit(0 if r.returncode == 0 else 1)
+        if bad: print("REGRESSION: this change broke earlier fixes, reopened:", ", ".join(bad), "- fix them before continuing")
+        sys.exit(0 if r.returncode == 0 and not bad else 1)
     elif c in ("block", "wontfix"):
         if not a.reason: sys.exit("--reason required")
         x = find(s, a.id); x["status"] = "blocked" if c == "block" else "wontfix"; x["reason"] = a.reason; save(s); print(a.id, x["status"])
     elif c == "pass":
         s["passes"].append({"t": time.strftime("%Y-%m-%d %H:%M"), "new": int(a.new or 0)}); save(s); print("pass recorded, new defects:", a.new or 0)
     elif c == "gate":
+        bad = regress(s)
+        if bad: save(s); print("REGRESSION: earlier fixes failing again and reopened:", ", ".join(bad))
         open_ = [x for x in s["findings"] if x["status"] in ("open", "in_progress")]
         blocked = [x for x in s["findings"] if x["status"] == "blocked"]
         passes = s["passes"]; clean = len(passes) >= 2 and all(p["new"] == 0 for p in passes[-2:])
@@ -89,6 +110,22 @@ def main():
         ok = not open_ and clean
         for x in blocked: print("  needs user:", x["id"], x["reason"])
         print("GATE:", "PASSED, you may report completion" if ok else "FAILED, do not claim completion"); sys.exit(0 if ok else 1)
+    elif c == "regress":
+        bad = regress(s); save(s)
+        print("regression check:", "ALL EARLIER FIXES STILL HOLD" if not bad else "FAILING AGAIN: " + ", ".join(bad)); sys.exit(1 if bad else 0)
+    elif c == "export-tests":
+        out = os.path.join(D, "regression.sh"); lines = ["#!/bin/sh", "# Regression checks exported from the audit ledger. Run from the project root.", "fail=0"]
+        for x in s["findings"]:
+            if x["status"] == "fixed" and x["check"]:
+                title = x["title"].replace("'", "")
+                lines.append(f"echo '{x['id']} {title}'; ( {x['check']} ) >/dev/null 2>&1 || {{ echo 'FAILED {x['id']}'; fail=1; }}")
+        lines.append("exit $fail"); open(out, "w").write("\n".join(lines) + "\n"); os.chmod(out, 0o755); print("wrote", out, "- commit it with the project so fixes stay fixed")
+    elif c == "active":
+        m = os.path.join(D, "active")
+        if a.id == "on": os.makedirs(D, exist_ok=True); open(m, "w").write(time.strftime("%Y-%m-%d %H:%M")); print("repair mode ON: the Stop hook now blocks finishing until the gate passes")
+        else:
+            if os.path.exists(m): os.remove(m)
+            print("repair mode OFF")
     elif c == "report":
         print("| id | severity | status | title | proof or reason |\n|---|---|---|---|---|")
         for x in sorted(s["findings"], key=lambda x: (SEVS.index(x["sev"]), x["id"])):
