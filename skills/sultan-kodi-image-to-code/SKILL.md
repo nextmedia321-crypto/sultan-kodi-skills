@@ -43,3 +43,6 @@ Reference: a pricing-page screenshot. Result: component code, tokens `--bg #0b0b
 - Low-resolution or cropped image: say which parts were inferred.
 - Text inside the image: transcribe exactly; flag uncertain characters.
 - Do not claim a match without actually rendering and comparing it at two widths.
+
+## Bundled script
+`scripts/compare.py reference.png screenshot.png [diff.png]` resizes if needed, prints a similarity score and the three most different regions of a 4x4 grid, and writes a diff image. Run it at each width you verify; below about 93 keep iterating. Needs Pillow.

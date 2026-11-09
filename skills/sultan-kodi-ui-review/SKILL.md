@@ -45,3 +45,6 @@ Review the given files, folder or URL. If none is given, ask which. Read the cod
 - Only a screenshot available: review visuals and say interaction checks were not possible.
 - Brand rules that conflict with a guideline: flag it as a trade-off instead of calling it a bug.
 - Do not redesign the product; recommend focused fixes.
+
+## Bundled script
+`scripts/audit_html.py page.html` statically finds missing alt text, unnamed buttons, unlabeled fields, clickable divs, positive tabindex and heading jumps. `scripts/audit_html.py --contrast "#777777" "#ffffff"` returns the WCAG contrast ratio with pass or fail for normal text, large text and AAA. Use results as evidence, and still review the rendered screen by eye.

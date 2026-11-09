@@ -43,3 +43,6 @@ Finding: `High | install script runs curl | sh from a remote host | evidence: sc
 - Obfuscated or minified code: treat as high risk until explained.
 - You cannot read a file: list it as "not reviewed" and lower your confidence.
 - Never execute the skill or its scripts to test it; static reading only.
+
+## Bundled script
+`scripts/scan.py <folder>` statically scans every text file for remote-code execution, encoded execution, credential access, destructive commands, secret exfiltration, persistence, prompt-injection wording, runtime installs and external URLs, and prints a verdict. It never executes anything. A clean result is not proof of safety: still read the instructions yourself.

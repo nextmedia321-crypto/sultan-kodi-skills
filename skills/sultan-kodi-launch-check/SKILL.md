@@ -58,3 +58,6 @@ Finding format: `[High] Missing Content-Security-Policy | evidence: response hea
 - Site behind login or staging password: check only what is reachable and list what was not checked.
 - Automated tool unavailable: do that check manually and mark it as manual.
 - Never change anything before the user approves the fix list.
+
+## Bundled script
+`scripts/sweep.py <url> [max_links]` runs the read-only automated sweep (HTTPS and redirect, security headers, title, description, viewport, language, headings, image alt text, robots and sitemap, broken links) and prints findings by severity. Run it in step 2, then add the manual area checks. Needs only Python 3 and network access to the site.

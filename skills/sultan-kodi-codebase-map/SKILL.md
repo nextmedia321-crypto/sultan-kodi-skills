@@ -40,3 +40,6 @@ Benefit: a clean structure makes later work cheaper, safer and easier to debug. 
 - Very large repo: map the top two levels first, then drill into the area the user cares about; say what was not read.
 - Generated or vendored folders: list them once as "ignore" instead of describing them.
 - If you are unsure what a file does, write "unclear" rather than guessing.
+
+## Bundled script
+`scripts/scan.py [path] [depth]` prints file types, a folder tree with counts, manifests and entry points, the most imported local modules (the danger zones) and the largest files. Run it first in Map mode, then read the key files it points to.
