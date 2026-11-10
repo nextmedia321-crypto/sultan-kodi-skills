@@ -45,6 +45,6 @@ elif opt("--postgres"):
          "tables without RLS (Supabase style)": "select schemaname||'.'||tablename from pg_tables where schemaname='public' and not rowsecurity",
          "largest tables": "select relname||' '||pg_size_pretty(pg_total_relation_size(oid)) from pg_class where relkind='r' and relnamespace='public'::regnamespace order by pg_total_relation_size(oid) desc limit 5"}
     for name, sql in q.items():
-        r = subprocess.run(["psql", opt("--postgres"), "-At", "-c", "set default_transaction_read_only=on; " + sql], capture_output=True, text=True, timeout=120)
+        r = subprocess.run(["psql", opt("--postgres"), "-At", "-c", sql], capture_output=True, text=True, timeout=120, env={**os.environ, "PGOPTIONS": "-c default_transaction_read_only=on"})
         p(f"\n== {name}"); p((r.stdout.strip() or "none")[:1500] if r.returncode == 0 else "error: " + r.stderr.strip()[:200])
 else: sys.exit(__doc__)

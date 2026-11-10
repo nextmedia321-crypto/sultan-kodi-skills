@@ -34,6 +34,15 @@ try:
     elif opt("--pgdump"):
         p = opt("--pgdump"); head = open(p, "rb").read(200000)
         print(f"# Postgres dump parse only: {os.path.getsize(p)} bytes, {'plain SQL' if head[:5] != b'PGDMP' else 'custom format'}; CREATE TABLE statements: {head.count(b'CREATE TABLE')}")
-        print("NOT CHECKED: a real restore needs a scratch Postgres instance. Record as not checkable, ask for one."); sys.exit(0)
+        sc = opt("--scratch")
+        if not sc:
+            print("NOT CHECKED: a real restore needs a scratch Postgres database. Pass --scratch URL --i-confirm-not-production (an EMPTY throwaway database, never production)."); sys.exit(2)
+        if "--i-confirm-not-production" not in a: sys.exit("Refusing: --scratch must be an empty throwaway database; pass --i-confirm-not-production")
+        import subprocess
+        n0 = subprocess.run(["psql", sc, "-At", "-c", "select count(*) from pg_tables where schemaname='public'"], capture_output=True, text=True)
+        if n0.returncode or n0.stdout.strip() != "0": sys.exit("Refusing: scratch database is unreachable or not empty (" + (n0.stderr.strip()[:100] or n0.stdout.strip()) + ")")
+        r = subprocess.run(["psql", sc, "-q", "-v", "ON_ERROR_STOP=1", "-f", p] if head[:5] != b"PGDMP" else ["pg_restore", "--no-owner", "-d", sc, p], capture_output=True, text=True)
+        n1 = subprocess.run(["psql", sc, "-At", "-c", "select count(*) from pg_tables where schemaname='public'"], capture_output=True, text=True).stdout.strip()
+        print(f"restore exit {r.returncode}; tables restored: {n1}" + (f"; error: {r.stderr.strip()[:200]}" if r.returncode else "")); sys.exit(0 if r.returncode == 0 and n1 != "0" else 1)
     else: sys.exit(__doc__)
 finally: shutil.rmtree(tmp, ignore_errors=True)
