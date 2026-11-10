@@ -15,6 +15,10 @@ Two goals: leave no part of the system unexamined, and never stop fixing until e
 - Never claim a tool ran when it was not installed or could not run: record the row as not checkable with the install hint.
 - If `.audit/findings.json` exists, read it and resume.
 
+## Prime directive: do not stop early
+When the user asks to find and fix everything, the job is the whole coverage ledger plus the repair loop, not a discovery report. The cost estimate is information for the user, never a reason to stop: if the system is large, split it into modules and keep going module after module in the same run. Stop only when the gate passes, when a budget the user set is reached (`budget.py check` exit 4), or when blocked on a decision only the user can make. Ending after Phase 1 or 2 with "the full audit is not realistic in one session" is a failure. Run `ledger.py coverage` after each module and continue with the next unchecked rows.
+Speed: for systems with many modules, start one subagent per module group (Agent tool, read-only examination), each writing its findings with `ledger.py add` and closing its rows with `ledger.py cover ROWID run|read|not-checkable|n/a --reason EVIDENCE`, then merge and run the repair loop on the combined ledger. Close every row with evidence; a row is never closed by saying "looks fine".
+
 ## Step 0 - Choose the mode and show the cost
 Run `scripts/estimate.py <project>` and show the estimate (it is only an estimate). Offer the modes and use the one the user picks; default to check and fix:
 - quick: Critical and High areas only (entry points, auth, data, secrets, build), read-only.
@@ -23,7 +27,7 @@ Run `scripts/estimate.py <project>` and show the estimate (it is only an estimat
 - full: check and fix plus browser sweep, live DB, permission matrix, gap analysis, verifier and HTML report.
 - pr: only what a change touched, for pull requests and CI (`scripts/pr_check.py`).
 - monitor: a lightweight nightly re-check that reports only what changed (`scripts/monitor.py`).
-The Stop hook (below) is used in check and fix and full only.
+The Stop hook (below) is used in check and fix and full only. In those modes turn repair mode on right after the ledger seed is written (`ledger.py active on`), so the gate also blocks finishing while any coverage row is unchecked.
 Budget: if the user gives a usage cap (for example "up to 20% of my week"), run `scripts/budget.py set ...`, log rough units after heavy steps with `budget.py log N`, and run `budget.py check` between findings: exit 3 means wrap up, exit 4 means stop, save the ledger and write `.audit/HANDOFF.md`. The numbers are self-reported estimates; say so.
 
 ## Phase 1 - Discover (no edits)
@@ -33,7 +37,7 @@ Budget: if the user gives a usage cap (for example "up to 20% of my week"), run 
 4. Build the coverage ledger from `references/coverage.md`; all rows unchecked.
 
 ## Phase 2 - Examine every row
-Work every row until none is unchecked; close a row only as run, read, not checkable (reason) or not applicable (reason). Apply the checklists in `references/coverage.md`, and run the tools:
+Work every row until none is unchecked; close a row with `ledger.py cover ROWID run|read|not-checkable|n/a --reason EVIDENCE` (`ledger.py coverage` shows what is left). The completion gate fails while any coverage row is unchecked. Apply the checklists in `references/coverage.md`, and run the tools:
 - Real scanners: `scripts/sec_scan.py <project>` (npm audit, pip-audit, bandit, gitleaks, semgrep, trivy, osv-scanner, govulncheck, cargo audit, bundler-audit when installed; built-in secret patterns always). Never install tools without asking.
 - Running app: `node scripts/browser_sweep.mjs <url> --save .audit/baseline.json` crawls pages, clicks every non-destructive button, and reports console errors, failed requests, dead buttons, basic accessibility, axe violations (if axe-core is installed), and load, LCP and transfer numbers. Run again with `--compare` after fixes to catch performance regressions; add `--mobile` for a phone viewport. Destructive-labeled buttons are skipped unless the user allowed them.
 - Roles and ownership: write `.audit/authz.json` and run `scripts/authz_matrix.py .audit/authz.json` against a local or staging instance with test accounts (tokens from env vars). Every mismatch is a finding; a 200 where another user's record should be denied is an IDOR.

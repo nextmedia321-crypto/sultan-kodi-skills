@@ -17,6 +17,8 @@ Usage (run from the project root, or set AUDIT_DIR):
   ledger.py export-tests                  write .audit/regression.sh from all fixed checks
   ledger.py active on|off                 turn repair mode (Stop hook blocking) on or off
   ledger.py priority                      today / this week / this month, by business impact and effort
+  ledger.py cover ROWID run|read|not-checkable|n/a [--reason "evidence"]   close a coverage row in .audit/ledger-seed.tsv
+  ledger.py coverage                      coverage summary and the next unchecked rows
   ledger.py report                        markdown summary
   (add also takes --impact revenue|retention|risk|none --effort S|M|L --plain "one plain sentence for a business owner")
 """
@@ -52,9 +54,15 @@ def regress(s, exclude=None):
                 x["status"] = "open"; x["history"].append({"t": time.strftime("%H:%M:%S"), "exit": code, "tail": "REGRESSION: " + tail}); bad.append(x["id"])
     return bad
 
+SEED = os.path.join(D, "ledger-seed.tsv")
+def cov_load():
+    if not os.path.exists(SEED): return []
+    return [(l.rstrip("\n").split("\t") + [""] * 7)[:7] for l in open(SEED, encoding="utf-8") if l.strip()]
+def cov_save(rows): open(SEED, "w", encoding="utf-8").write("\n".join("\t".join(r) for r in rows) + "\n")
+
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("cmd"); ap.add_argument("id", nargs="?")
-    for a in ("sev", "area", "title", "evidence", "check", "fix", "reason", "new", "impact", "effort", "plain"): ap.add_argument("--" + a)
+    ap = argparse.ArgumentParser(); ap.add_argument("cmd"); ap.add_argument("id", nargs="?"); ap.add_argument("status", nargs="?")
+    for a in ("sev", "area", "title", "evidence", "check", "fix", "reason", "new", "impact", "effort", "plain", "status"): ap.add_argument("--" + a)
     ap.add_argument("--open", action="store_true"); a = ap.parse_args(); c = a.cmd
 
     if c == "init":
@@ -109,7 +117,10 @@ def main():
         print(f'findings {len(s["findings"])}: fixed {sum(x["status"]=="fixed" for x in s["findings"])}, blocked {len(blocked)}, wontfix {sum(x["status"]=="wontfix" for x in s["findings"])}, open {len(open_)}')
         for x in open_: print("  NOT DONE:", x["id"], x["sev"], x["title"])
         if not clean: print("  NOT DONE: need two consecutive full re-audit passes with 0 new defects (recorded:", len(passes), ")")
-        ok = not open_ and clean
+        cv = cov_load(); unchecked = [r for r in cv[1:] if r[4] == "unchecked"]
+        if cv: print(f"  coverage: {len(cv) - 1 - len(unchecked)}/{len(cv) - 1} rows closed")
+        for r in unchecked[:8]: print("  NOT DONE: coverage row", r[0], r[2], r[1][:60])
+        ok = not open_ and clean and not unchecked
         for x in blocked: print("  needs user:", x["id"], x["reason"])
         print("GATE:", "PASSED, you may report completion" if ok else "FAILED, do not claim completion"); sys.exit(0 if ok else 1)
     elif c == "regress":
@@ -140,6 +151,17 @@ def main():
         for k, v in buckets.items():
             print(f"\n## {k} ({len(v)})")
             for x in v: print(f'- {x["id"]} [{x["sev"]}] {x["title"]}  impact={x.get("impact") or "?"} effort={x.get("effort") or "?"}' + (" (needs you)" if x["status"] == "blocked" else ""))
+    elif c == "cover":
+        if not (a.id and a.status in ("run", "read", "not-checkable", "n/a") and a.reason): sys.exit("use: cover ROWID run|read|not-checkable|n/a --reason EVIDENCE")
+        rows = cov_load(); hit = [r for r in rows[1:] if r[0] == a.id]
+        if not hit: sys.exit("no such row " + a.id)
+        hit[0][4] = {"run": "run", "read": "read", "not-checkable": "not checkable", "n/a": "not applicable"}[a.status]; hit[0][5] = a.reason; cov_save(rows)
+        print(a.id, "closed as", hit[0][4])
+    elif c == "coverage":
+        rows = cov_load(); un = [r for r in rows[1:] if r[4] == "unchecked"]; tot = len(rows) - 1
+        print(f"coverage: {tot - len(un)}/{tot} rows closed, {len(un)} unchecked")
+        for r in un[:15]: print("  next:", r[0], r[2], r[1][:70])
+        sys.exit(1 if un else 0)
     elif c == "report":
         print("| id | severity | status | title | proof or reason |\n|---|---|---|---|---|")
         for x in sorted(s["findings"], key=lambda x: (SEVS.index(x["sev"]), x["id"])):
