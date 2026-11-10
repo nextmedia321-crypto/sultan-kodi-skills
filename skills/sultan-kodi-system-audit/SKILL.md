@@ -19,6 +19,9 @@ Two goals: leave no part of the system unexamined, and never stop fixing until e
 When the user asks to find and fix everything, the job is the whole coverage ledger plus the repair loop, not a discovery report. The cost estimate is information for the user, never a reason to stop: if the system is large, split it into modules and keep going module after module in the same run. Stop only when the gate passes, when a budget the user set is reached (`budget.py check` exit 4), or when blocked on a decision only the user can make. Ending after Phase 1 or 2 with "the full audit is not realistic in one session" is a failure. Run `ledger.py coverage` after each module and continue with the next unchecked rows.
 Speed: for systems with many modules, start one subagent per module group (Agent tool, read-only examination), each writing its findings with `ledger.py add` and closing its rows with `ledger.py cover ROWID run|read|not-checkable|n/a --reason EVIDENCE`, then merge and run the repair loop on the combined ledger. Close every row with evidence; a row is never closed by saying "looks fine".
 
+## Go-live goal
+When the user says the system must be ready to go live (production-ready, "מוכנה לאוויר", launch, ship), the job is a release-ready system after one command, and a large run is explicitly fine: do not ask about cost, do not stop at a report. Do everything below in one run: full mode, every coverage row closed, every defect fixed or blocked with the exact decision, two clean passes, verifier, then `ledger.py release-set --build "..." --test "..." --smoke "..."` with the project's real build, test and smoke commands (write a smoke script that hits the main flows if none exists) and `ledger.py release`. The answer is GO or NO-GO with the reasons. Only GO means ready. Anything that needs the user (secrets to rotate, production environment settings, paid upgrades, product decisions) is listed as a NO-GO reason with the exact action. The skill never deploys to production or changes live systems itself: deployment is a separate step that needs the user's yes.
+
 ## Step 0 - Choose the mode and show the cost
 Run `scripts/estimate.py <project>` and show the estimate (it is only an estimate). Offer the modes and use the one the user picks; default to check and fix:
 - quick: Critical and High areas only (entry points, auth, data, secrets, build), read-only.
@@ -102,7 +105,7 @@ Update the ledger after every fix. Large systems go module by module with one le
 - Tool missing (Playwright, scanners, psql): record the gap and the install command; do not claim coverage.
 
 ## Bundled files
-- `scripts/inventory.py`, `scripts/ledger.py`, `scripts/stop_gate.py`, `scripts/install_hook.py`
+- `scripts/inventory.py`, `scripts/ledger.py` (includes `release` GO/NO-GO), `scripts/stop_gate.py`, `scripts/install_hook.py`
 - `scripts/sec_scan.py`, `scripts/browser_sweep.mjs`, `scripts/db_check.py`, `scripts/authz_matrix.py`, `scripts/map_services.py`
 - `scripts/report_html.py`, `scripts/estimate.py`, `scripts/trend.py`, `scripts/budget.py`, `scripts/monitor.py`, `scripts/pr_check.py`
 - `scripts/fuzz.py`, `scripts/loadtest.py`, `scripts/backup_restore.py`, `scripts/pii_map.py`, `scripts/git_secrets.py`, `scripts/cost_scan.py`, `scripts/content_seo.py`, `scripts/email_check.py`, `scripts/deploy_check.py`

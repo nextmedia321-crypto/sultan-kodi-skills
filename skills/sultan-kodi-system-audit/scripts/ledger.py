@@ -19,6 +19,8 @@ Usage (run from the project root, or set AUDIT_DIR):
   ledger.py priority                      today / this week / this month, by business impact and effort
   ledger.py cover ROWID run|read|not-checkable|n/a [--reason "evidence"]   close a coverage row in .audit/ledger-seed.tsv
   ledger.py coverage                      coverage summary and the next unchecked rows
+  ledger.py release-set --build CMD --test CMD --smoke CMD   record the commands that prove the system is ready to go live
+  ledger.py release                       GO / NO-GO: gate passed, no open High/Critical, blocked items listed, build, tests and smoke run now
   ledger.py report                        markdown summary
   (add also takes --impact revenue|retention|risk|none --effort S|M|L --plain "one plain sentence for a business owner")
 """
@@ -62,7 +64,7 @@ def cov_save(rows): open(SEED, "w", encoding="utf-8").write("\n".join("\t".join(
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("cmd"); ap.add_argument("id", nargs="?"); ap.add_argument("status", nargs="?")
-    for a in ("sev", "area", "title", "evidence", "check", "fix", "reason", "new", "impact", "effort", "plain", "status"): ap.add_argument("--" + a)
+    for a in ("sev", "area", "title", "evidence", "check", "fix", "reason", "new", "impact", "effort", "plain", "status", "build", "test", "smoke"): ap.add_argument("--" + a)
     ap.add_argument("--open", action="store_true"); a = ap.parse_args(); c = a.cmd
 
     if c == "init":
@@ -157,6 +159,32 @@ def main():
         if not hit: sys.exit("no such row " + a.id)
         hit[0][4] = {"run": "run", "read": "read", "not-checkable": "not checkable", "n/a": "not applicable"}[a.status]; hit[0][5] = a.reason; cov_save(rows)
         print(a.id, "closed as", hit[0][4])
+    elif c == "release-set":
+        rel = {k: getattr(a, k) for k in ("build", "test", "smoke") if getattr(a, k)}
+        if not rel: sys.exit("give at least one of --build --test --smoke")
+        old = json.load(open(os.path.join(D, "release.json"))) if os.path.exists(os.path.join(D, "release.json")) else {}
+        old.update(rel); json.dump(old, open(os.path.join(D, "release.json"), "w"), indent=1); print("saved", old)
+    elif c == "release":
+        rp = os.path.join(D, "release.json"); rel = json.load(open(rp)) if os.path.exists(rp) else {}
+        problems = []
+        bad = regress(s); save(s)
+        if bad: problems.append("earlier fixes failing again: " + ", ".join(bad))
+        op = [x for x in s["findings"] if x["status"] in ("open", "in_progress")]
+        for x in op: problems.append(f'not fixed: {x["id"]} {x["sev"]} {x["title"]}')
+        for x in s["findings"]:
+            if x["status"] == "blocked": problems.append(f'blocked on you: {x["id"]} {x["sev"]} {x["title"]} ({x["reason"][:80]})')
+            if x["status"] == "wontfix" and x["sev"] in ("Critical", "High"): problems.append(f'wontfix on a {x["sev"]}: {x["id"]} {x["title"]} (needs explicit sign-off)')
+        cv = cov_load(); un = [r for r in cv[1:] if r[4] == "unchecked"]
+        if un: problems.append(f"{len(un)} coverage rows unchecked")
+        ps = s["passes"]
+        if not (len(ps) >= 2 and all(p["new"] == 0 for p in ps[-2:])): problems.append("need two consecutive clean re-audit passes")
+        for k in ("build", "test", "smoke"):
+            if k not in rel: problems.append(f"no {k} command recorded (release-set --{k} ...)"); continue
+            code, tail = run(rel[k])
+            print(f"{k}: {'ok' if code == 0 else 'FAILED'}  ({rel[k]})")
+            if code: problems.append(f"{k} failed: {tail[-150:]}")
+        for p in problems: print("  NO-GO:", p)
+        print("RELEASE:", "GO (all checks passed; deploying is a separate step that needs the user's yes)" if not problems else "NO-GO"); sys.exit(1 if problems else 0)
     elif c == "coverage":
         rows = cov_load(); un = [r for r in rows[1:] if r[4] == "unchecked"]; tot = len(rows) - 1
         print(f"coverage: {tot - len(un)}/{tot} rows closed, {len(un)} unchecked")
