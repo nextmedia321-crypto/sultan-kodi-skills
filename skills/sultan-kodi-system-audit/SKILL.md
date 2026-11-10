@@ -19,6 +19,15 @@ Two goals: leave no part of the system unexamined, and never stop fixing until e
 When the user asks to find and fix everything, the job is the whole coverage ledger plus the repair loop, not a discovery report. The cost estimate is information for the user, never a reason to stop: if the system is large, split it into modules and keep going module after module in the same run. Stop only when the gate passes, when a budget the user set is reached (`budget.py check` exit 4), or when blocked on a decision only the user can make. Ending after Phase 1 or 2 with "the full audit is not realistic in one session" is a failure. Run `ledger.py coverage` after each module and continue with the next unchecked rows.
 Speed: for systems with many modules, start one subagent per module group (Agent tool, read-only examination), each writing its findings with `ledger.py add` and closing its rows with `ledger.py cover ROWID run|read|not-checkable|n/a --reason EVIDENCE`, then merge and run the repair loop on the combined ledger. Close every row with evidence; a row is never closed by saying "looks fine".
 
+## Spend tokens only where they close defects
+Wasted runs have known causes, each handled up front:
+1. Unbuildable base: run `scripts/preflight.py <project>` first. If it reports blockers (no install, failing build or tests), fixing those is finding number one; do not start auditing a base that cannot run.
+2. Reading instead of running: let the scripts do the bulk work (inventory, scanners, sweeps, `pii_map`, `cost_scan`, `deploy_check`). Read only the files a finding points to; never re-read what the ledger already records.
+3. Cheapest and most severe first: static tools, then Critical and High fixes, then the rest. Fix a defect class once, everywhere (sibling sweep), not file by file.
+4. Retry discipline: `ledger.py verify` counts attempts and prints STUCK after three; split or block the item instead of repeating.
+5. Convergence: run `ledger.py health` after every pass. If later passes find as many new defects as earlier ones, the fixes are creating defects: stop, run the regression suite and fix the root pattern first.
+6. Honest ending: the final report always says fixed X of Y, blocked Z with the exact need, and the GO or NO-GO. A run that cannot reach GO ends with the shortest list of what the user must do, never an open-ended retry.
+
 ## Go-live goal
 When the user says the system must be ready to go live (production-ready, "מוכנה לאוויר", launch, ship), the job is a release-ready system after one command, and a large run is explicitly fine: do not ask about cost, do not stop at a report. Do everything below in one run: full mode, every coverage row closed, every defect fixed or blocked with the exact decision, two clean passes, verifier, then `ledger.py release-set --build "..." --test "..." --smoke "..."` with the project's real build, test and smoke commands (write a smoke script that hits the main flows if none exists) and `ledger.py release`. The answer is GO or NO-GO with the reasons. Only GO means ready. Anything that needs the user (secrets to rotate, production environment settings, paid upgrades, product decisions) is listed as a NO-GO reason with the exact action. The skill never deploys to production or changes live systems itself: deployment is a separate step that needs the user's yes.
 
@@ -34,6 +43,7 @@ The Stop hook (below) is used in check and fix and full only. In those modes tur
 Budget: if the user gives a usage cap (for example "up to 20% of my week"), run `scripts/budget.py set ...`, log rough units after heavy steps with `budget.py log N`, and run `budget.py check` between findings: exit 3 means wrap up, exit 4 means stop, save the ledger and write `.audit/HANDOFF.md`. The numbers are self-reported estimates; say so.
 
 ## Phase 1 - Discover (no edits)
+0. Run `scripts/preflight.py <project>`; if it says NOT READY, the blockers come first.
 1. Identify stack, entry points, how to run, build and test, where it deploys. Read README, manifests, config.
 2. `scripts/inventory.py <project> --ledger .audit/ledger-seed.tsv` for routes, endpoints, interactive elements, env vars, models, dependencies, tests and risk markers.
 3. If there are several services or repos: `scripts/map_services.py <dir>` for service boundaries, exposed routes, outbound calls, shared databases and call/route mismatches. Add a row per service and per boundary.
@@ -105,7 +115,7 @@ Update the ledger after every fix. Large systems go module by module with one le
 - Tool missing (Playwright, scanners, psql): record the gap and the install command; do not claim coverage.
 
 ## Bundled files
-- `scripts/inventory.py`, `scripts/ledger.py` (includes `release` GO/NO-GO), `scripts/stop_gate.py`, `scripts/install_hook.py`
+- `scripts/preflight.py` (cheap can-it-build check), `scripts/inventory.py`, `scripts/ledger.py` (includes `release` GO/NO-GO), `scripts/stop_gate.py`, `scripts/install_hook.py`
 - `scripts/sec_scan.py`, `scripts/browser_sweep.mjs`, `scripts/db_check.py`, `scripts/authz_matrix.py`, `scripts/map_services.py`
 - `scripts/report_html.py`, `scripts/estimate.py`, `scripts/trend.py`, `scripts/budget.py`, `scripts/monitor.py`, `scripts/pr_check.py`
 - `scripts/fuzz.py`, `scripts/loadtest.py`, `scripts/backup_restore.py`, `scripts/pii_map.py`, `scripts/git_secrets.py`, `scripts/cost_scan.py`, `scripts/content_seo.py`, `scripts/email_check.py`, `scripts/deploy_check.py`

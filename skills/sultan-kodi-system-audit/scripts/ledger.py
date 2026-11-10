@@ -21,6 +21,7 @@ Usage (run from the project root, or set AUDIT_DIR):
   ledger.py coverage                      coverage summary and the next unchecked rows
   ledger.py release-set --build CMD --test CMD --smoke CMD   record the commands that prove the system is ready to go live
   ledger.py release                       GO / NO-GO: gate passed, no open High/Critical, blocked items listed, build, tests and smoke run now
+  ledger.py health                        progress check: fixed vs attempts, stuck items, whether passes are converging; tells you when to stop burning effort
   ledger.py report                        markdown summary
   (add also takes --impact revenue|retention|risk|none --effort S|M|L --plain "one plain sentence for a business owner")
 """
@@ -98,7 +99,8 @@ def main():
         if not x.get("baseline_failed"): sys.exit("Run 'start' first: the check must fail before the fix, otherwise it proves nothing")
         r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=900)
         out = (r.stdout + r.stderr).strip()[-600:]
-        x["history"].append({"t": time.strftime("%H:%M:%S"), "exit": r.returncode, "tail": out})
+        x["history"].append({"t": time.strftime("%H:%M:%S"), "exit": r.returncode, "tail": out}); x["attempts"] = x.get("attempts", 0) + 1
+        if r.returncode != 0 and x["attempts"] >= 3: print(f"STUCK: {a.id} failed {x['attempts']} attempts. Stop retrying the same approach: split it or block it with the exact need (ledger.py block).")
         if r.returncode == 0: x["status"] = "fixed"; x["proof"] = f"check passed at {time.strftime('%Y-%m-%d %H:%M')}: {cmd}"
         else: x["status"] = "in_progress"
         bad = regress(s, exclude=a.id) if r.returncode == 0 else []
@@ -185,6 +187,16 @@ def main():
             if code: problems.append(f"{k} failed: {tail[-150:]}")
         for p in problems: print("  NO-GO:", p)
         print("RELEASE:", "GO (all checks passed; deploying is a separate step that needs the user's yes)" if not problems else "NO-GO"); sys.exit(1 if problems else 0)
+    elif c == "health":
+        F_ = s["findings"]; fixed = sum(x["status"] == "fixed" for x in F_); att = sum(x.get("attempts", 0) for x in F_)
+        stuck = [x for x in F_ if x["status"] in ("open", "in_progress") and x.get("attempts", 0) >= 3]
+        ps = [p["new"] for p in s["passes"]]; conv = len(ps) < 3 or ps[-1] < ps[0] or ps[-1] == 0
+        print(f"fixed {fixed}/{len(F_)}; verify attempts {att} ({att / max(fixed, 1):.1f} per fix); passes new-defect trend {ps or 'none'}")
+        for x in stuck: print("  STUCK:", x["id"], x["title"], f"({x['attempts']} failed attempts) -> split or block with the exact need")
+        if not conv: print("  WARNING: later passes find as many new defects as earlier ones. The fixes are creating defects: stop adding features, run the full regression suite, and fix the root pattern before another pass.")
+        cv = cov_load(); un = [r for r in cv[1:] if r[4] == "unchecked"] if cv else []
+        if cv: print(f"  coverage left: {len(un)}")
+        sys.exit(1 if stuck or not conv else 0)
     elif c == "coverage":
         rows = cov_load(); un = [r for r in rows[1:] if r[4] == "unchecked"]; tot = len(rows) - 1
         print(f"coverage: {tot - len(un)}/{tot} rows closed, {len(un)} unchecked")
